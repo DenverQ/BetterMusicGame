@@ -70,6 +70,12 @@
     <h1>YouTube Music Battle</h1>
     
     <div id="round-info">Round 1/64</div>
+
+    <div id="input-section">
+        <label for="playlistUrl">Enter YouTube Playlist URL:</label>
+        <input type="text" id="playlistUrl" placeholder="https://www.youtube.com/playlist?list=YOUR_PLAYLIST_ID">
+        <button onclick="handlePlaylistInput()">Load Playlist</button>
+    </div>
     
     <div class="video-container">
         <div class="video-wrapper-with-button">
@@ -91,15 +97,43 @@
 
     <script>
         const API_KEY = 'AIzaSyCvlI3Xup_eeYQuOFHds-saUUI0XlRxWXs'; // Replace with your API Key
-        const PLAYLIST_ID = 'PLxA687tYuMWhkqYjvAGtW_heiEL4Hk_Lx'; // Your Playlist ID
         let videos = [];
         let currentPair = 0; // Initialize currentPair
         let round = 1; // Track round number
 
+        // Function to handle user input
+                function handlePlaylistInput() {
+            const playlistUrl = document.getElementById('playlistUrl').value;
+            const playlistId = extractPlaylistId(playlistUrl);
+
+            if (playlistId) {
+                fetchPlaylistVideos(playlistId);
+            } else {
+                alert('Invalid YouTube Playlist URL');
+            }
+        }
+
+        // Function to extract playlist ID from the URL
+        function extractPlaylistId(url) {
+            console.log("Provided URL:", url); // Log the URL to check if it's correct
+            
+            // Updated regex to handle URLs with both "watch?v=" and "list="
+            const regex = /[?&]list=([a-zA-Z0-9_-]+)/;
+            const match = url.match(regex);
+
+            if (match && match[1]) {
+                console.log("Extracted Playlist ID:", match[1]); // Log the extracted playlist ID
+                return match[1];
+            } else {
+                console.error("No valid playlist ID found.");
+                return null;
+            }
+        }
+
         // Function to fetch playlist videos
-        async function fetchPlaylistVideos() {
+        async function fetchPlaylistVideos(playlistId) {
             try {
-                const response = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${PLAYLIST_ID}&key=${API_KEY}`);
+                const response = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}&key=${API_KEY}`);
                 if (!response.ok) {
                     throw new Error('Network response was not ok ' + response.statusText);
                 }
@@ -107,6 +141,7 @@
                 
                 // Extract video IDs
                 const videoIds = data.items.map(item => item.snippet.resourceId.videoId);
+                console.log('Fetched video IDs:', videoIds);
                 
                 // Now fetch details to check if embeddable
                 await checkEmbedStatus(videoIds);
@@ -114,6 +149,7 @@
                 console.error('Error fetching playlist:', error);
             }
         }
+
 
         // Function to check embed status of videos
         async function checkEmbedStatus(videoIds) {
@@ -126,6 +162,7 @@
                 const data = await response.json();
 
                 // Filter out non-embeddable videos
+                videos = []; // Reset videos array
                 data.items.forEach(item => {
                     if (item.status.embeddable) {
                         videos.push(`https://www.youtube.com/embed/${item.id}`);
@@ -135,6 +172,7 @@
                 });
 
                 console.log('Embeddable videos:', videos);
+                currentPair = 0; // Reset the pair counter
                 loadPair(); // Start loading pairs from the filtered video list
             } catch (error) {
                 console.error('Error checking embed status:', error);
@@ -146,10 +184,8 @@
             if (videos.length > 1 && currentPair < videos.length - 1) {
                 document.getElementById("video1").src = videos[currentPair];
                 document.getElementById("video2").src = videos[currentPair + 1];
-                document.getElementById("round-info").innerText = `Round ${round}/64`;
             } else {
                 console.error('Not enough embeddable videos to load.');
-                document.getElementById("round-info").innerText = 'No more videos available for embedding.';
             }
         }
 
