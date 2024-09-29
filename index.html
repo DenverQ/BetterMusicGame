@@ -80,14 +80,14 @@
     <div class="video-container">
         <div class="video-wrapper-with-button">
             <div class="video-wrapper">
-                <iframe id="video1" src="" frameborder="0" referrerpolicy="no-referrer-when-downgrade" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                <iframe id="video1" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             </div>
             <button onclick="selectVideo(0)">Select this Video</button>
         </div>
         
         <div class="video-wrapper-with-button">
             <div class="video-wrapper">
-                <iframe id="video2" src="" frameborder="0" referrerpolicy="no-referrer-when-downgrade" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                <iframe id="video2" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             </div>
             <button onclick="selectVideo(1)">Select this Video</button>
         </div>
@@ -95,12 +95,19 @@
 
     <button id="reset-button" onclick="resetGame()">Reset Game</button>
 
+    <script src="https://www.youtube.com/iframe_api"></script>
     <script>
         const API_KEY = 'AIzaSyCvlI3Xup_eeYQuOFHds-saUUI0XlRxWXs'; // Replace with your API Key
         let videos = [];
         let currentPair = 0;
         let round = 1;
-        let storedPlaylistId = null; // Store playlist ID
+        let storedPlaylistId = null;
+        let players = [];
+
+        // This function is called by the IFrame API to notify us that the API is ready
+        function onYouTubeIframeAPIReady() {
+            loadPair(); // Load the first pair after the API is ready
+        }
 
         // Function to handle user input
         function handlePlaylistInput() {
@@ -138,8 +145,8 @@
                 const data = await response.json();
 
                 // Extract video IDs and build embeddable URLs
-                videos = data.items.map(item => `https://www.youtube.com/embed/${item.snippet.resourceId.videoId}?autoplay=1`);
-                console.log('Fetched video URLs:', videos);
+                videos = data.items.map(item => item.snippet.resourceId.videoId);
+                console.log('Fetched video IDs:', videos);
 
                 currentPair = 0; // Reset to start with the first pair
                 loadPair(); // Load the first pair of videos
@@ -151,31 +158,63 @@
         // Function to load video pairs
         function loadPair() {
             if (videos.length > 1 && currentPair < videos.length - 1) {
-                document.getElementById("video1").src = videos[currentPair];
-                document.getElementById("video2").src = videos[currentPair + 1];
-                
+                const video1Id = videos[currentPair];
+                const video2Id = videos[currentPair + 1];
+
+                document.getElementById("video1").src = `https://www.youtube.com/embed/${video1Id}?enablejsapi=1&autoplay=1`;
+                document.getElementById("video2").src = `https://www.youtube.com/embed/${video2Id}?enablejsapi=1&autoplay=1`;
+
+                // Create players for each video
+                players[0] = new YT.Player('video1', {
+                    events: {
+                        'onReady': onPlayerReady,
+                        'onStateChange': onPlayerStateChange
+                    }
+                });
+
+                players[1] = new YT.Player('video2', {
+                    events: {
+                        'onReady': onPlayerReady,
+                        'onStateChange': onPlayerStateChange
+                    }
+                });
+
                 // Add event listeners for hover
                 const video1 = document.getElementById("video1");
                 const video2 = document.getElementById("video2");
-                
-                video1.addEventListener('mouseenter', () => unmuteVideo(video1));
-                video1.addEventListener('mouseleave', () => muteVideo(video1));
-                
-                video2.addEventListener('mouseenter', () => unmuteVideo(video2));
-                video2.addEventListener('mouseleave', () => muteVideo(video2));
+
+                video1.addEventListener('mouseenter', () => unmuteVideo(0));
+                video1.addEventListener('mouseleave', () => muteVideo(0));
+
+                video2.addEventListener('mouseenter', () => unmuteVideo(1));
+                video2.addEventListener('mouseleave', () => muteVideo(1));
             } else {
                 console.error('Not enough embeddable videos to load.');
             }
         }
 
-        // Function to unmute the video
-        function unmuteVideo(video) {
-            video.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', '*');
+        // Function to mute the video
+        function muteVideo(index) {
+            if (players[index]) {
+                players[index].mute();
+            }
         }
 
-        // Function to mute the video
-        function muteVideo(video) {
-            video.contentWindow.postMessage('{"event":"command","func":"mute","args":""}', '*');
+        // Function to unmute the video
+        function unmuteVideo(index) {
+            if (players[index]) {
+                players[index].unMute();
+            }
+        }
+
+        // Placeholder for player ready event
+        function onPlayerReady(event) {
+            event.target.playVideo(); // Start playing the video when it's ready
+        }
+
+        // Placeholder for player state change event
+        function onPlayerStateChange(event) {
+            // You can add custom behavior based on player state change if needed
         }
 
         // Function to handle video selection
