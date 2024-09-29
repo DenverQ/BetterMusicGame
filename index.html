@@ -23,12 +23,23 @@
             align-items: center;
             width: 45%;
             margin-bottom: 20px;
+            transition: opacity 0.5s, border 0.5s; /* Smooth transitions */
         }
 
         .video-wrapper {
             position: relative;
             width: 100%;
             padding-top: 56.25%;
+            border: 5px solid transparent; /* Default border */
+            border-radius: 8px; /* Rounded corners */
+        }
+
+        .video-wrapper.selected {
+            border: 5px solid #76ff03; /* Highlight color for selected video */
+        }
+
+        .video-wrapper.faded {
+            opacity: 0.5; /* Faded effect for eliminated video */
         }
 
         .video-wrapper iframe {
@@ -64,12 +75,33 @@
             border: none;
             cursor: pointer;
         }
+
+        #ranking {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        #ranking ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        #ranking li {
+            margin: 5px 0;
+        }
+
+        #bracket-info {
+            margin-top: 10px;
+            text-align: center;
+        }
+
     </style>
 </head>
 <body>
     <h1>YouTube Music Battle</h1>
     
-    <div id="round-info">Round 1/64</div>
+    <div id="round-info">Round 1/1</div>
+    <div id="bracket-info">Comparisons: 0</div>
 
     <div id="input-section">
         <label for="playlistUrl">Enter YouTube Playlist URL:</label>
@@ -79,14 +111,14 @@
     
     <div class="video-container">
         <div class="video-wrapper-with-button">
-            <div class="video-wrapper">
+            <div class="video-wrapper" id="video-wrapper1">
                 <iframe id="video1" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             </div>
             <button onclick="selectVideo(0)">Select this Video</button>
         </div>
         
         <div class="video-wrapper-with-button">
-            <div class="video-wrapper">
+            <div class="video-wrapper" id="video-wrapper2">
                 <iframe id="video2" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             </div>
             <button onclick="selectVideo(1)">Select this Video</button>
@@ -94,6 +126,11 @@
     </div>
 
     <button id="reset-button" onclick="resetGame()">Reset Game</button>
+
+    <div id="ranking" style="display: none;">
+        <h2>Ranking</h2>
+        <ul id="ranking-list"></ul>
+    </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
@@ -103,8 +140,10 @@
         let round = 1;
         let storedPlaylistId = null;
         let players = [];
+        let totalRounds = 0;
+        let comparisonsInRound = 0; // Track comparisons in current round
+        let rankings = []; // To store rankings of videos
 
-        // This function is called by the IFrame API to notify us that the API is ready
         function onYouTubeIframeAPIReady() {
             loadPair(); // Load the first pair after the API is ready
         }
@@ -144,10 +183,14 @@
                 }
                 const data = await response.json();
 
-                // Extract video IDs and build embeddable URLs
                 videos = data.items.map(item => item.snippet.resourceId.videoId);
                 console.log('Fetched video IDs:', videos);
 
+                // Calculate total rounds
+                totalRounds = Math.ceil(Math.log2(videos.length));
+                comparisonsInRound = videos.length / 2; // Initial comparisons
+                document.getElementById("round-info").innerText = `Round ${round}/${totalRounds}`; // Update round info
+                document.getElementById("bracket-info").innerText = `Comparisons: ${comparisonsInRound}`; // Update comparisons
                 currentPair = 0; // Reset to start with the first pair
                 loadPair(); // Load the first pair of videos
             } catch (error) {
@@ -161,8 +204,8 @@
                 const video1Id = videos[currentPair];
                 const video2Id = videos[currentPair + 1];
 
-                document.getElementById("video1").src = `https://www.youtube.com/embed/${video1Id}?enablejsapi=1&autoplay=1`;
-                document.getElementById("video2").src = `https://www.youtube.com/embed/${video2Id}?enablejsapi=1&autoplay=1`;
+                document.getElementById("video1").src = `https://www.youtube.com/embed/${video1Id}?enablejsapi=1&autoplay=1&mute=1`;
+                document.getElementById("video2").src = `https://www.youtube.com/embed/${video2Id}?enablejsapi=1&autoplay=1&mute=1`;
 
                 // Create players for each video
                 players[0] = new YT.Player('video1', {
@@ -180,64 +223,100 @@
                 });
 
                 // Add event listeners for hover
-                const video1 = document.getElementById("video1");
-                const video2 = document.getElementById("video2");
+                const video1 = document.getElementById("video-wrapper1");
+                const video2 = document.getElementById("video-wrapper2");
 
                 video1.addEventListener('mouseenter', () => unmuteVideo(0));
                 video1.addEventListener('mouseleave', () => muteVideo(0));
 
                 video2.addEventListener('mouseenter', () => unmuteVideo(1));
                 video2.addEventListener('mouseleave', () => muteVideo(1));
+
+                // Mute both videos initially
+                muteVideo(0);
+                muteVideo(1);
             } else {
-                console.error('Not enough embeddable videos to load.');
+                console.error('Not enough videos to load.');
             }
         }
 
-        // Function to mute the video
-        function muteVideo(index) {
-            if (players[index]) {
-                players[index].mute();
-            }
-        }
-
-        // Function to unmute the video
-        function unmuteVideo(index) {
-            if (players[index]) {
-                players[index].unMute();
-            }
-        }
-
-        // Placeholder for player ready event
         function onPlayerReady(event) {
-            event.target.playVideo(); // Start playing the video when it's ready
+            event.target.playVideo(); // Start playback
         }
 
-        // Placeholder for player state change event
         function onPlayerStateChange(event) {
-            // You can add custom behavior based on player state change if needed
+            // Handle state change if needed
+        }
+
+        function unmuteVideo(index) {
+            players[index].unMute();
+        }
+
+        function muteVideo(index) {
+            players[index].mute();
         }
 
         // Function to handle video selection
         function selectVideo(selectedIndex) {
-            // Determine which video is selected and retain only that video
             const selectedVideo = videos[currentPair + selectedIndex];
-            videos = videos.filter(video => video !== selectedVideo);
+            const eliminatedVideo = videos[currentPair + (selectedIndex === 0 ? 1 : 0)];
 
-            currentPair += 2; // Move to the next pair
+            const selectedWrapper = document.getElementById(`video-wrapper${selectedIndex + 1}`);
+            const eliminatedWrapper = document.getElementById(`video-wrapper${selectedIndex === 0 ? 2 : 1}`);
 
-            if (currentPair >= videos.length) {
-                alert("No more videos available for this round.");
-                return;
-            }
+            selectedWrapper.classList.add('selected');
+            eliminatedWrapper.classList.add('faded');
+
+            // Track ranking
+            const roundMatches = Math.pow(2, totalRounds - round); // Matches left in the current round
+            const position = (currentPair / 2) + 1; // Position of the match
+            rankings.push({ videoId: selectedVideo, roundPosition: roundMatches + position }); // Record video and its position
+
+            // Remove the eliminated video from the pool
+            videos = videos.filter(video => video !== eliminatedVideo);
+
+            comparisonsInRound--; // Decrement comparisons in current round
+            document.getElementById("bracket-info").innerText = `Comparisons: ${comparisonsInRound}`; // Update comparisons
 
             // Update round if necessary
-            if (currentPair >= Math.pow(2, round)) {
-                round++;
-                currentPair = 0; // Reset to the first pair of the next round
-                document.getElementById("round-info").innerText = `Round ${round}/64`;  // Update round info
+            if (comparisonsInRound === 0) {
+                round++; // Next round
+                comparisonsInRound = videos.length / 2; // Reset comparisons for new round
+
+                // If there are more than one video left, update round info
+                if (videos.length > 1) {
+                    document.getElementById("round-info").innerText = `Round ${round}/${totalRounds}`; // Update round info
+                } else {
+                    showRanking(); // Show ranking if no more videos
+                    return;
+                }
             }
 
-            loadPair(); // Load the next pair
+            setTimeout(() => {
+                // Move to the next pair
+                currentPair += 2; // Move to the next pair
+
+                loadPair(); // Load the next pair
+
+                // Reset styles for the next pair
+                selectedWrapper.classList.remove('selected');
+                eliminatedWrapper.classList.remove('faded');
+            }, 1000); // 1 second delay for visual effect
+        }
+
+        // Function to display rankings at the end of the battles
+        function showRanking() {
+            document.getElementById("ranking").style.display = 'block';
+            const rankingList = document.getElementById("ranking-list");
+            rankingList.innerHTML = ''; // Clear previous rankings
+
+            // Sort rankings based on round position and display
+            rankings.sort((a, b) => a.roundPosition - b.roundPosition);
+            rankings.forEach((entry, index) => {
+                const li = document.createElement("li");
+                li.textContent = `Rank ${index + 1}: Video ID ${entry.videoId}`;
+                rankingList.appendChild(li);
+            });
         }
 
         // Function to reset the game
@@ -245,9 +324,13 @@
             currentPair = 0;
             round = 1;
             videos = []; // Clear videos
+            players = []; // Clear player instances
+            rankings = []; // Clear rankings
             document.getElementById("video1").src = '';
             document.getElementById("video2").src = '';
-            document.getElementById("round-info").innerText = 'Round 1/64';
+            document.getElementById("round-info").innerText = 'Round 1/1';
+            document.getElementById("bracket-info").innerText = 'Comparisons: 0';
+            document.getElementById("ranking").style.display = 'none'; // Hide ranking
             if (storedPlaylistId) {
                 fetchPlaylistVideos(storedPlaylistId); // Use the stored playlist ID
             }
