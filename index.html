@@ -80,14 +80,14 @@
     <div class="video-container">
         <div class="video-wrapper-with-button">
             <div class="video-wrapper">
-                <iframe id="video1" src="" frameborder="0" referrerpolicy="no-referrer-when-downgrade" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                <iframe id="video1" src="" frameborder="0" referrerpolicy="no-referrer-when-downgrade" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             </div>
             <button onclick="selectVideo(0)">Select this Video</button>
         </div>
         
         <div class="video-wrapper-with-button">
             <div class="video-wrapper">
-                <iframe id="video2" src="" frameborder="0" referrerpolicy="no-referrer-when-downgrade" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                <iframe id="video2" src="" frameborder="0" referrerpolicy="no-referrer-when-downgrade" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             </div>
             <button onclick="selectVideo(1)">Select this Video</button>
         </div>
@@ -101,12 +101,12 @@
         let currentPair = 0;
         let round = 1;
         let storedPlaylistId = null; // Store playlist ID
-    
+
         // Function to handle user input
         function handlePlaylistInput() {
             const playlistUrl = document.getElementById('playlistUrl').value;
             const playlistId = extractPlaylistId(playlistUrl);
-    
+
             if (playlistId) {
                 storedPlaylistId = playlistId;
                 fetchPlaylistVideos(playlistId);
@@ -114,12 +114,12 @@
                 alert('Invalid YouTube Playlist URL');
             }
         }
-    
+
         // Function to extract playlist ID from the URL
         function extractPlaylistId(url) {
             const regex = /[?&]list=([a-zA-Z0-9_-]+)/;
             const match = url.match(regex);
-    
+
             if (match && match[1]) {
                 return match[1];
             } else {
@@ -127,7 +127,7 @@
                 return null;
             }
         }
-    
+
         // Function to fetch playlist videos
         async function fetchPlaylistVideos(playlistId) {
             try {
@@ -136,29 +136,19 @@
                     throw new Error('Network response was not ok ' + response.statusText);
                 }
                 const data = await response.json();
-    
+
                 // Extract video IDs and build embeddable URLs
                 videos = data.items.map(item => `https://www.youtube.com/embed/${item.snippet.resourceId.videoId}?autoplay=1`);
                 console.log('Fetched video URLs:', videos);
-    
+
                 currentPair = 0; // Reset to start with the first pair
                 loadPair(); // Load the first pair of videos
             } catch (error) {
                 console.error('Error fetching playlist:', error);
             }
         }
-    
+
         // Function to load video pairs
-        function loadPair() {
-            if (videos.length > 1 && currentPair < videos.length - 1) {
-                document.getElementById("video1").src = videos[currentPair];
-                document.getElementById("video2").src = videos[currentPair + 1];
-            } else {
-                console.error('Not enough embeddable videos to load.');
-            }
-        }
-    
-        // Function to handle video selection
         function loadPair() {
             if (videos.length > 1 && currentPair < videos.length - 1) {
                 document.getElementById("video1").src = videos[currentPair];
@@ -177,7 +167,40 @@
                 console.error('Not enough embeddable videos to load.');
             }
         }
-    
+
+        // Function to unmute the video
+        function unmuteVideo(video) {
+            video.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', '*');
+        }
+
+        // Function to mute the video
+        function muteVideo(video) {
+            video.contentWindow.postMessage('{"event":"command","func":"mute","args":""}', '*');
+        }
+
+        // Function to handle video selection
+        function selectVideo(selectedIndex) {
+            // Determine which video is selected and retain only that video
+            const selectedVideo = videos[currentPair + selectedIndex];
+            videos = videos.filter(video => video !== selectedVideo);
+
+            currentPair += 2; // Move to the next pair
+
+            if (currentPair >= videos.length) {
+                alert("No more videos available for this round.");
+                return;
+            }
+
+            // Update round if necessary
+            if (currentPair >= Math.pow(2, round)) {
+                round++;
+                currentPair = 0; // Reset to the first pair of the next round
+                document.getElementById("round-info").innerText = `Round ${round}/64`;  // Update round info
+            }
+
+            loadPair(); // Load the next pair
+        }
+
         // Function to reset the game
         function resetGame() {
             currentPair = 0;
